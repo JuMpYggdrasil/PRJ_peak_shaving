@@ -180,33 +180,31 @@ def shaving(charge_power_percentage,discharge_power_percentage,timestamps, load_
     # Extract timestamps and SOC values for plotting SOC
     soc_timestamps = [row[0] for row in battery_soc]
     soc_values = [row[1] for row in battery_soc]
+    
+    # Create a figure and a set of subplots with specified figure size
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(12, 8))  # figsize sets the size of the figure
 
-    # Plot load data, peak shaved load, battery energy level, and SOC
-    plt.figure(figsize=(12, 8))
+    # Plot Load Data on the first subplot
+    ax1.plot(timestamps, load_data, label='Original Load', linestyle='--', color='blue')
+    ax1.plot(timestamps, shaved_load_values, label='Peak Shaved Load', color='green')
+    ax1.axhline(y=peak_shaved_load_max, color='darkgreen', linestyle=':', label=f'peak_shaved_load_max')
+    ax1.plot(timestamps, discharge_lvl, color='orange', linestyle=':', label=f'{discharge_power_percentage}% Discharge Power')
+    ax1.plot(timestamps, charge_lvl, color='red', linestyle=':', label=f'{charge_power_percentage}% Charge Power')
+    ax1.set_xlabel('Timestamp')
+    ax1.set_ylabel('Load (kW)')
+    ax1.set_title('Peak Shaving and Battery Operation')
+    ax1.legend()
+    ax1.grid(True)
 
-    # Plot Load Data
-    plt.subplot(2, 1, 1)
-    plt.plot(timestamps, load_data, label='Original Load', linestyle='--', color='blue')
-    plt.plot(timestamps, shaved_load_values, label='Peak Shaved Load', color='green')
-    plt.axhline(y=peak_shaved_load_max, color='darkgreen', linestyle=':', label=f'peak_shaved_load_max')
-    plt.plot(timestamps, discharge_lvl, color='orange', linestyle=':', label=f'{discharge_power_percentage}% Discharge Power')
-    plt.plot(timestamps, charge_lvl, color='red', linestyle=':', label=f'{charge_power_percentage}% Charge Power')
-    #plt.plot(timestamps, [available_battery_capacity_kWh] * len(timestamps), linestyle=':', color='purple', label='Battery Capacity')
-    plt.xlabel('Timestamp')
-    plt.ylabel('Load (kW)')
-    plt.title('Peak Shaving and Battery Operation')
-    plt.legend()
-    plt.grid(True)
+    # Plot SOC on the second subplot
+    ax2.plot(soc_timestamps, soc_values, label='SOC', color='blue')
+    ax2.set_xlabel('Timestamp')
+    ax2.set_ylabel('SOC (%)')
+    ax2.set_title('Battery State of Charge (SOC)')
+    ax2.set_ylim([-10, 110])  # Limit the y-axis to the range of 0% to 100%
+    ax2.grid(True)
 
-    # Plot SOC
-    plt.subplot(2, 1, 2)
-    plt.plot(soc_timestamps, soc_values, label='SOC', color='blue')
-    plt.xlabel('Timestamp')
-    plt.ylabel('SOC (%)')
-    plt.title('Battery State of Charge (SOC)')
-    plt.ylim([-10, 110])  # Limit the y-axis to the range of 0% to 100%
-    plt.grid(True)
-
+    # Adjust layout
     plt.tight_layout()
     plt.show()
 
