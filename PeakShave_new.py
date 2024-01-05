@@ -3,15 +3,19 @@ from datetime import datetime, timedelta, time
 import matplotlib.pyplot as plt
 import pandas as pd
 
-timestamp_interval = 15/60  # minute
+timestamp_interval = 5/60  # minute/hour
+battery_min_percent = 20
 
 # Load data from a CSV file
 timestamps = []
 load_data = []  # one year
 
 # Load data using pandas
-date_format = '%d.%m.%Y %H:%M'
-df = pd.read_csv('BCF_2022_homer.csv', parse_dates=['Date'], date_format=date_format)
+# date_format = '%d.%m.%Y %H:%M'
+# date_format = '%m/%d/%Y %H:%M'
+date_format = '%Y-%m-%d %H:%M'
+# df = pd.read_csv('BCF_2022_homer.csv', parse_dates=['Date'], date_format=date_format)
+df = pd.read_csv('EnergyDayChartAll2022.csv', parse_dates=['Date'], date_format=date_format)
 # data = pd.read_csv('load_data_cleaned.csv', parse_dates=['Date'], date_format=date_format)
 df.rename(columns={'Date': 'timestamp','Load': 'load'}, inplace=True)
 
@@ -21,15 +25,17 @@ df.set_index('timestamp', inplace=True)
 # Extract timestamps and load data from the DataFrame
 timestamps = df.index  # Assuming the index contains timestamp values
 load_data = df['load']  # Assuming 'load' is the column with load data
-
+max_load_limit = max(load_data)*1.1
+print("max",max_load_limit)
 
 filtered_data = []
 
 # Iterate through each month
-for month in range(1, 13):
+for month in range(1, 13):# 1 to 12+1
     # Filter data for the current month
     filtered_month_data = df[df.index.month == month]
     filtered_data.append(filtered_month_data)
+
 
 # Define the shaving function
 def shaving(charge_power_percentage,discharge_power_percentage,timestamps, load_data):
@@ -45,14 +51,16 @@ def shaving(charge_power_percentage,discharge_power_percentage,timestamps, load_
     # Battery parameters
     ## Battery tesla 1 uint: 700,000 THB energy 135 kW-hr, power 5.5 kW 
     ## GRID scaled battery: 000,000 THB energy 1000 kW-hr, power 350 kW 
-    max_battery_capacity_kWh = 100  # Replace with your battery capacity in kWh
-    battery_power_limit = 40 # kW
+    FULL_battery_capacity_kWh = 100  # Replace with your battery capacity in kWh
+    max_battery_capacity_kWh = FULL_battery_capacity_kWh*battery_min_percent/100
+    battery_power_limit = 20 # kW
 
 
     # Initialize variables
     available_battery_capacity_kWh = max_battery_capacity_kWh  # Battery energy level in kWh
     space_battery_capacity_kWh = max(max_battery_capacity_kWh - available_battery_capacity_kWh,0)
     peak_shaved_load = []
+    peak_unshaved_load = []
     charge_lvl = []
     discharge_lvl = []
     battery_soc = []  # To store SOC values
@@ -81,15 +89,15 @@ def shaving(charge_power_percentage,discharge_power_percentage,timestamps, load_
 
         if is_weekday and is_within_on_peak_time_range:# on peak (want to discharge -- low discharge lvl)
             if is_within_custom_time_range:
-                discharge_lvl_power_kW = 0
-                charge_lvl_power_kW = 0
+                discharge_lvl_power_kW = 450
+                charge_lvl_power_kW = 450
             else: # do nothing
-                discharge_lvl_power_kW = 3000
-                charge_lvl_power_kW = 0
+                discharge_lvl_power_kW = max_load_limit
+                charge_lvl_power_kW = 450
                 
         else:# off peak (want to charge -- high charge lvl)
-            discharge_lvl_power_kW = 3000
-            charge_lvl_power_kW = 3000
+            discharge_lvl_power_kW = max_load_limit
+            charge_lvl_power_kW = max_load_limit
             
         
         charge_lvl.append([charge_lvl_power_kW])
@@ -159,14 +167,27 @@ def shaving(charge_power_percentage,discharge_power_percentage,timestamps, load_
         soc_percentage = max((available_battery_capacity_kWh/max_battery_capacity_kWh)* 100,0)
         battery_soc.append([timestamp, soc_percentage])
         peak_shaved_load.append([timestamp, load - battery_supply_power + battery_consume_power])
+        peak_unshaved_load.append([timestamp, load])
         
 
     # Calculate the peak shaved load
-    peak_shaved_load = np.array(peak_shaved_load)
-    peak_shaved_load_max = max(peak_shaved_load[10:, 1])
+    # peak_shaved_load = np.array(peak_shaved_load)
+    peak_shaved_df = pd.DataFrame(peak_shaved_load, columns=['timestamp', 'load'])
+    peak_unshaved_df = pd.DataFrame(peak_unshaved_load, columns=['timestamp', 'load'])
+    peak_shaved_df.set_index('timestamp', inplace=True)
+    peak_unshaved_df.set_index('timestamp', inplace=True)
+        # Create a boolean mask for the day of the week (Monday=0, Saturday=5)
+    weekday_mask = peak_shaved_df.index.dayofweek <= 5
+    time_mask = (peak_shaved_df.index.time >= pd.to_datetime('09:00').time()) & (peak_shaved_df.index.time <= pd.to_datetime('22:00').time())
+    peak_shaved_df = peak_shaved_df[weekday_mask & time_mask]
+    peak_unshaved_df = peak_unshaved_df[weekday_mask & time_mask]
+
+
+    peak_shaved_load_max = max(peak_shaved_df['load'])
+    peak_unshaved_load_max = max(peak_unshaved_df['load'])
 
     # Calculate the peak load reduction
-    peak_load_reduction = max(load_data) - peak_shaved_load_max
+    peak_load_reduction = peak_unshaved_load_max - peak_shaved_load_max
 
     # if peak_load_reduction > 10:
     #     # print(f"charge,discharge: {charge_power_percentage},{discharge_power_percentage} kW")
@@ -188,6 +209,7 @@ def shaving(charge_power_percentage,discharge_power_percentage,timestamps, load_
     ax1.plot(timestamps, load_data, label='Original Load', linestyle='--', color='blue')
     ax1.plot(timestamps, shaved_load_values, label='Peak Shaved Load', color='green')
     ax1.axhline(y=peak_shaved_load_max, color='darkgreen', linestyle=':', label=f'peak_shaved_load_max')
+    ax1.axhline(y=peak_unshaved_load_max, color='darkblue', linestyle=':', label=f'peak_unshaved_load_max')
     ax1.plot(timestamps, discharge_lvl, color='orange', linestyle=':', label=f'{discharge_power_percentage}% Discharge Power')
     ax1.plot(timestamps, charge_lvl, color='red', linestyle=':', label=f'{charge_power_percentage}% Charge Power')
     ax1.set_xlabel('Timestamp')
@@ -212,8 +234,10 @@ def shaving(charge_power_percentage,discharge_power_percentage,timestamps, load_
     
     return peak_load_reduction
 
+demand_reduction = []
 # Loop through the filtered data for each month
 for i in range(0, 12):
     load_data_monthly = filtered_data[i]['load'].values.tolist()
-    max_val = shaving(89, 90, timestamps, load_data_monthly)
-    print(f"max: {max_val}")
+    peak_load_reduction = shaving(89, 90, timestamps, load_data_monthly)
+    demand_reduction.append(peak_load_reduction)
+print(f"Max of Peak load reduction: {max(demand_reduction)}")
