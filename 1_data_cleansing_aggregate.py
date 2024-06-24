@@ -1,8 +1,10 @@
 import pandas as pd
 
 # Load the historical data with the specified timestamp format
-date_format = '%d.%m.%Y %H:%M'
-data = pd.read_csv('BCF_2022_homer.csv', parse_dates=['Date'], date_format=date_format)
+# date_format = '%d.%m.%Y %H:%M'
+# data = pd.read_csv('BCF_2022_homer.csv', parse_dates=['Date'], date_format=date_format)
+date_format = '%d/%m/%Y %H.%M'
+data = pd.read_csv('combined_data_robinson_edit.csv', parse_dates=['Date'], date_format=date_format)
 # data = pd.read_csv('load_data_cleaned.csv', parse_dates=['Date'], date_format=date_format)
 data.rename(columns={'Date': 'timestamp','Load': 'load'}, inplace=True)
 

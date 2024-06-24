@@ -3,8 +3,13 @@ from datetime import datetime, timedelta, time
 import matplotlib.pyplot as plt
 import pandas as pd
 
-timestamp_interval = 5/60  # minute/hour
+timestamp_interval = 30/60  # minute/hour
 battery_min_percent = 20
+FULL_battery_capacity_kWh = 1000  # Replace with your battery capacity in kWh
+# discharge_lvl_power_kW > charge_lvl_power_kW
+criteria_lvl_charge = 3700
+criteria_lvl_discharge = 3800
+battery_power_limit = 200 # kW
 
 # Load data from a CSV file
 timestamps = []
@@ -13,9 +18,10 @@ load_data = []  # one year
 # Load data using pandas
 # date_format = '%d.%m.%Y %H:%M'
 # date_format = '%m/%d/%Y %H:%M'
-date_format = '%Y-%m-%d %H:%M'
+# date_format = '%Y-%m-%d %H:%M'
+date_format = '%d/%m/%Y %H.%M'
 # df = pd.read_csv('BCF_2022_homer.csv', parse_dates=['Date'], date_format=date_format)
-df = pd.read_csv('EnergyDayChartAll2022.csv', parse_dates=['Date'], date_format=date_format)
+df = pd.read_csv('combined_data_robinson_edit.csv', parse_dates=['Date'], date_format=date_format)
 # data = pd.read_csv('load_data_cleaned.csv', parse_dates=['Date'], date_format=date_format)
 df.rename(columns={'Date': 'timestamp','Load': 'load'}, inplace=True)
 
@@ -51,9 +57,9 @@ def shaving(charge_power_percentage,discharge_power_percentage,timestamps, load_
     # Battery parameters
     ## Battery tesla 1 uint: 700,000 THB energy 135 kW-hr, power 5.5 kW 
     ## GRID scaled battery: 000,000 THB energy 1000 kW-hr, power 350 kW 
-    FULL_battery_capacity_kWh = 100  # Replace with your battery capacity in kWh
+    
     max_battery_capacity_kWh = FULL_battery_capacity_kWh*battery_min_percent/100
-    battery_power_limit = 20 # kW
+    
 
 
     # Initialize variables
@@ -89,11 +95,11 @@ def shaving(charge_power_percentage,discharge_power_percentage,timestamps, load_
 
         if is_weekday and is_within_on_peak_time_range:# on peak (want to discharge -- low discharge lvl)
             if is_within_custom_time_range:
-                discharge_lvl_power_kW = 450
-                charge_lvl_power_kW = 450
+                discharge_lvl_power_kW = criteria_lvl_discharge
+                charge_lvl_power_kW = criteria_lvl_charge
             else: # do nothing
                 discharge_lvl_power_kW = max_load_limit
-                charge_lvl_power_kW = 450
+                charge_lvl_power_kW = criteria_lvl_charge
                 
         else:# off peak (want to charge -- high charge lvl)
             discharge_lvl_power_kW = max_load_limit
